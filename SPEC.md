@@ -114,8 +114,9 @@ included, by `step`, then `unit`. `units_changes.parquet` holds a row for a unit
 listed and was not at the step before, any column differs from the step before, or it is no longer listed. It is
 sorted by `unit`, then `step`.
 
-Every unit at a step is the snapshot at or before it, each unit then taking its last change after the snapshot and up
-to the step; a unit whose last change reads `listed` false is not listed then.
+Every unit at a step is read from the snapshot at or before it and the changes after the snapshot, up to the step:
+each unit takes its last change there if it has one, a unit first listed after the snapshot comes from its changes,
+and a unit whose last change reads `listed` false is not listed then.
 
 | Column | Type | |
 |---|---|---|
@@ -129,7 +130,7 @@ to the step; a unit whose last change reads `listed` false is not listed then.
 | `health`, `health_max`, `shield`, `shield_max`, `energy`, `energy_max` | `float32` | |
 | `build_progress` | `float32` | 0 to 1 |
 | `flying`, `burrowed`, `hallucination` | `bool` | |
-| `cloak` | `uint8` | the game's cloak state, from its owner's view: whether it is cloaked |
+| `cloak` | `uint8` | the game's cloak state, from its owner's view, whether it is cloaked; player 1's view for the map's units |
 | `attack_level`, `armor_level`, `shield_level` | `uint8` | |
 | `minerals`, `vespene` | `uint16` | what a resource holds |
 | `weapon_cooldown` | `float32` | steps, from its owner's view |
@@ -149,8 +150,8 @@ What a player remembered of a unit is the unit as it was at the last step that p
 
 ## `orders.parquet`, `buffs.parquet`, `passengers.parquet`, `rallies.parquet`
 
-Each by `unit`, then `step`, with rows only where the unit's list changes. Orders, passengers and rallies are their
-owner's view; buffs are every unit's.
+Each by `unit`, then `step`, with rows only where the unit's list changes, in any column: an order's `progress` alone
+changing is a change. Orders, passengers and rallies are their owner's view; buffs are every unit's.
 
 | Table | Columns |
 |---|---|
