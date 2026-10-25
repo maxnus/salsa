@@ -1,9 +1,9 @@
 # The `.salsa` format, version 1
 
 A `.salsa` file holds one StarCraft II game: every unit at every step, which units each player saw, both players'
-actions and economy, the map, and the replay the file was written from. This is its spec. NachOS's writer writes
-version 1; a reader reads every version this spec has had. Version 1 may still change until the writer first writes
-it; after that, a change is a new version.
+actions and economy, the map, and the replay the file was written from. This is its spec. sc2salsa's writer writes
+version 1; its reader reads every version this spec has had. Version 1 may still change until the writer first
+writes it; after that, a change is a new version.
 
 ## The file
 
@@ -39,16 +39,21 @@ A reader ignores a member it does not know, so a later version can add one.
 - **The format's own words.** A value the game has no number for, such as an event's kind or a player's sight of a
   unit, is a `dictionary` string column: one of the words this spec lists, stored as a small index into the column's
   words, which a reader can compare as text.
-- **The truth.** The writer plays the replay back once as each player with the fog off. Every unit is as it was, and
-  a value only its owner's view reports, such as orders or a weapon's cooldown, is from that view.
-- **Events at the step reported.** The game reports a death or an action in the observation after it, so its `step` is
-  that observation's.
+- **Two views.** The writer plays the replay back twice, at every step, once as each player, with the fog on, as the
+  game was played. A player's unit is as its owner's view reports it, every field in full. A map unit is as a view in
+  whose sight it is reports it, and as last seen while in neither's; before either player sees it, as the copy each
+  view lists from the start reports it, its type and its spot.
+- **Steps of events.** An action carries the step the game ran it on, as the game stamps it, which is the step before
+  the observation that reports it (in game). The game stamps a death with no step: a death carries the step of the
+  first observation that reports it.
 - **A unit** is its index in the roster: 0, 1, 2 in the order units are first listed. A column naming a unit is a
-  `uint32`, null where it names none.
+  `uint32`, null where it names none. The game names a unit a player remembers in the fog by the tag of the copy it
+  shows the player: such a column names the unit the copy is of, the one of its type on its spot, and is null where
+  none is, or where the tag is one no view lists.
 - **Positions** are integers of 1/4096 tile, the grid the game reports them on: `x` 524288 is 128.0 tiles. A position
   column is an `int32`.
-- **Not reported** is null, never 0: a field the game did not report for a unit at a step, such as the health of a
-  unit no view saw in full.
+- **Not reported** is null, never 0: a field the game left unset for a unit at a step, such as a mineral field's
+  contents before either player sees it.
 - **Owners** are the game's: 1 and 2 for the players, 16 for the map's units.
 - **Encoding.** Parquet, zstd. The writer uses delta encoding for integer columns and byte-stream-split for float
   columns, where they shrink a table; a reader needs neither to read it.
@@ -60,7 +65,7 @@ The game's facts, in this shape (the values are an example):
 ```json
 {
   "format_version": 1,
-  "written_by": "sc2nachos 0.0.1",
+  "written_by": "sc2salsa 0.0.1",
   "map_name": "Pylon AIE",
   "map_file": "PylonAIE_v4.SC2Map",
   "base_build": 75689,
@@ -105,10 +110,10 @@ A row per unit, by `unit`.
 | Column | Type | |
 |---|---|---|
 | `unit` | `uint32` | its index |
-| `tag` | `uint64` | the game's tag for it, as both views list it with the fog off |
+| `tag` | `uint64` | the game's tag for it, never a copy's: null for a map unit no player ever sees |
 | `owner` | `uint8` | its owner when first listed |
 | `first_type` | `uint16` | its type when first listed |
-| `first_step`, `last_step` | `uint32` | the first and the last step it was listed at |
+| `first_step`, `last_step` | `uint32` | the first and the last step it was listed at: by its owner's view, or for a map unit, by either view, its copy included |
 
 ## The unit tables
 
@@ -133,12 +138,16 @@ and a unit whose last change reads `listed` false is not listed then.
 | `health`, `health_max`, `shield`, `shield_max`, `energy`, `energy_max` | `float32` | |
 | `build_progress` | `float32` | 0 to 1 |
 | `flying`, `burrowed`, `hallucination` | `bool` | |
-| `cloak` | `uint8` | the game's cloak state, from its owner's view, whether it is cloaked; player 1's view for the map's units |
+| `powered` | `bool` | a Protoss structure in a pylon's power field |
+| `active` | `bool` | busy: moving, attacking, gathering, training or researching |
+| `cloak` | `uint8` | the game's cloak state |
 | `attack_level`, `armor_level`, `shield_level` | `uint8` | |
 | `minerals`, `vespene` | `uint16` | what a resource holds |
-| `weapon_cooldown` | `float32` | steps, from its owner's view |
-| `assigned_harvesters`, `ideal_harvesters`, `cargo_used` | `uint8` | from its owner's view |
-| `add_on`, `engaged_target` | `uint32` | units, from its owner's view |
+| `weapon_cooldown` | `float32` | steps |
+| `assigned_harvesters`, `ideal_harvesters`, `cargo_used`, `cargo_max` | `uint8` | |
+| `buff_duration_left`, `buff_duration_max` | `uint32` | steps, of the unit's timed life, as a MULE's, or of a timed buff on it, as an inject's; null where it has neither, which the game reports as a maximum of 0 |
+| `detect_range`, `radar_range`, `radius` | `float32` | tiles |
+| `add_on`, `engaged_target` | `uint32` | units |
 
 ## `sight.parquet`
 
@@ -147,14 +156,15 @@ By `unit`, then `step`: a row at a unit's first step, and at each step either pl
 | Column | Type | |
 |---|---|---|
 | `step`, `unit` | `uint32` | |
-| `sight_1`, `sight_2` | `dictionary` string | as that player's view lists the unit: `out` of its sight, `undetected` in its sight, cloaked or burrowed, or `seen` |
+| `sight_1`, `sight_2` | `dictionary` string | as that player's view lists the unit: `out`, not listed; `remembered`, out of its sight, shown as a copy in the fog; `undetected`, in its sight, cloaked or burrowed; or `seen` |
 
-What a player remembered of a unit is the unit as it was at the last step that player saw it.
+A unit a player remembers is as that player last saw it: its row at the last step it read `seen`, or for a map unit
+not yet seen, its type and its spot.
 
 ## `orders.parquet`, `buffs.parquet`, `passengers.parquet`, `rallies.parquet`
 
 Each by `unit`, then `step`, with rows only where the unit's list changes, in any column: an order's `progress` alone
-changing is a change. Orders, passengers and rallies are their owner's view; buffs are every unit's.
+changing is a change. Each is as the unit's row is, from its owner's view.
 
 | Table | Columns |
 |---|---|
@@ -173,7 +183,7 @@ By `step`, then `unit`.
 | Column | Type | |
 |---|---|---|
 | `step`, `unit` | `uint32` | |
-| `kind` | `dictionary` string | `created`, first listed; `died`, reported dead in either view |
+| `kind` | `dictionary` string | `created`, first listed; `died`, first reported dead |
 
 ## `actions.parquet`
 
@@ -181,7 +191,7 @@ By `step`, then `player`: what each player's view reports it did.
 
 | Column | Type | |
 |---|---|---|
-| `step` | `uint32` | |
+| `step` | `uint32` | the step the game ran it on |
 | `player` | `uint8` | |
 | `ability` | `uint32` | |
 | `units` | `list<uint32>` | the units it was given to |
