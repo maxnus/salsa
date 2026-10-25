@@ -19,7 +19,6 @@ with an agent, and `.claude/plans/next-steps.md` holds the work in progress. Rea
   owner's call; offer a squash-merge at the end instead.
 - Branch off `origin/main` after a fetch; a local `main` may be stale.
 - Measurements, and which run proved what, go in the commit message and the PR body.
-- A change to the format here usually needs one to NachOS's writer too: say so in the PR, and plan the two together.
 
 ## Reviews
 
