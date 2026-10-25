@@ -8,12 +8,12 @@ Keep this file current: when a step is done, say so here in the same pull reques
 
 ## Where things stand
 
-- The repo holds its plan, and no code yet. NachOS writes the files; its own plan, NachOS's
+- The format's spec, version 1, is `SPEC.md` (#2). No code yet. NachOS writes the files; its own plan, NachOS's
   `.claude/plans/next-steps.md` under "Writing a replay's whole game for salsa", holds the writer's part
   (maxnus/NachOS#168).
-- Two NachOS bugs that AI Arena's replays hit come first: `run_replay` could not play back a replay whose map is not
-  where the replay names it (maxnus/NachOS#169, merged), and `OwnUnit.engaged_target` raised for a target the game
-  never listed (maxnus/NachOS#170).
+- Two NachOS bugs that AI Arena's replays hit are fixed: `run_replay` could not play back a replay whose map is not
+  where the replay names it (maxnus/NachOS#169), and `OwnUnit.engaged_target` raised for a target the game never
+  listed (maxnus/NachOS#170).
 
 ## Decided, so not to be proposed again
 
@@ -46,6 +46,14 @@ playing it back. The measurements they rest on are in maxnus/NachOS#168.
 - **A unit is a dense index** from 0 in the order units first appear (over the game's tag), and a roster table gives
   each its tag, owner, first type and first and last steps. NachOS's ids cannot serve: they differ between the two
   players' views.
+- **The unit changes are sorted by unit, then step** (the owner, 2026-10-25, over by step, then unit): 21 to 27%
+  smaller at every precision. A reader loads the table once, then rebuilds a step in some 40 µs; reading one step from
+  disk would need small row groups, which made the file 40 to 60% bigger and were no faster. Snapshots stay sorted by
+  step (#2).
+- **Lossless** (the owner, 2026-10-25, over 1/256 tile and 1/4096 turn, a quarter smaller): positions as integers of
+  1/4096 tile, the grid the game reports them on; facing, which lies on no grid, as reported in float32; the rest as
+  reported. Delta encoding for integer columns and byte-stream-split for float ones take a 30-minute game's units to
+  some 22 MB, a third of what Parquet's default encodings make (#2).
 - **The first reader** (over its tables and extracting alone): `sc2salsa.open(path)`, the facts, the replay, any table
   as a pyarrow Table, every unit `at(step)` from the nearest snapshot and the changes since, `frames(every=N)` forward
   through the game, and `extract(folder)`.
@@ -54,15 +62,11 @@ playing it back. The measurements they rest on are in maxnus/NachOS#168.
 
 A pull request at a time, in this order (the owner, over the spec and reader first, and over the writer first):
 
-1. **The format's spec**, version 1: every table, column, type and encoding, measuring what makes a file smaller
-   first. A 30-minute AI Arena game came to 77 to 97 MB with every field at every step; the changes sorted by unit
-   rather than by step, and positions and facing stored coarser, may shrink it. The measurements may use NachOS and a
-   game; the spec must not need them.
-2. NachOS writes the files (NachOS's plan), tested there against the spec with pyarrow alone.
-3. **The reader**, with `pyproject.toml`, tests and CI, its fixtures written by NachOS's writer. NachOS's `dev` extra
+1. NachOS writes the files (NachOS's plan), tested there against `SPEC.md` with pyarrow alone.
+2. **The reader**, with `pyproject.toml`, tests and CI, its fixtures written by NachOS's writer. NachOS's `dev` extra
    then installs sc2salsa from this repo, until the owner publishes it, for a round trip.
-4. NachOS writes a folder of replays across several game clients (NachOS's plan).
-5. **A digest of a game for an LLM.**
+3. NachOS writes a folder of replays across several game clients (NachOS's plan).
+4. **A digest of a game for an LLM.**
 
 ## Waiting until something needs them
 
