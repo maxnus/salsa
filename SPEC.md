@@ -36,6 +36,9 @@ A reader ignores a member it does not know, so a later version can add one.
   `uint32`.
 - **What the game reports.** Values are the game's own: unit types, abilities, buffs and upgrades are its integer ids,
   and `names.json` gives its names for them. Nothing in a file comes from NachOS's names.
+- **The format's own words.** A value the game has no number for, such as an event's kind or a player's sight of a
+  unit, is a `dictionary` string column: one of the words this spec lists, stored as a small index into the column's
+  words, which a reader can compare as text.
 - **The truth.** The writer plays the replay back once as each player with the fog off. Every unit is as it was, and
   a value only its owner's view reports, such as orders or a weapon's cooldown, is from that view.
 - **Events at the step reported.** The game reports a death or an action in the observation after it, so its `step` is
@@ -144,7 +147,7 @@ By `unit`, then `step`: a row at a unit's first step, and at each step either pl
 | Column | Type | |
 |---|---|---|
 | `step`, `unit` | `uint32` | |
-| `sight_1`, `sight_2` | `uint8` | as that player's view lists the unit: 0 out of its sight, 1 in its sight but cloaked or burrowed and undetected, 2 in its sight and seen |
+| `sight_1`, `sight_2` | `dictionary` string | as that player's view lists the unit: `out` of its sight, `undetected` in its sight, cloaked or burrowed, or `seen` |
 
 What a player remembered of a unit is the unit as it was at the last step that player saw it.
 
@@ -170,7 +173,7 @@ By `step`, then `unit`.
 | Column | Type | |
 |---|---|---|
 | `step`, `unit` | `uint32` | |
-| `kind` | `string` | `created`, first listed; `died`, reported dead in either view |
+| `kind` | `dictionary` string | `created`, first listed; `died`, reported dead in either view |
 
 ## `actions.parquet`
 
