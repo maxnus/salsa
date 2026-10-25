@@ -9,15 +9,16 @@ Keep this file current: when a step is done, say so here in the same pull reques
 ## Where things stand
 
 - The repo holds its plan, and no code yet. NachOS writes the files; its own plan, NachOS's
-  `.claude/plans/next-steps.md` under "Writing a replay's whole game for salsa", holds the writer's part (NachOS #168).
+  `.claude/plans/next-steps.md` under "Writing a replay's whole game for salsa", holds the writer's part
+  (maxnus/NachOS#168).
 - Two NachOS bugs that AI Arena's replays hit come first: `run_replay` could not play back a replay whose map is not
-  where the replay names it (NachOS #169, merged), and `OwnUnit.engaged_target` raised for a target the game never
-  listed (NachOS #170).
+  where the replay names it (maxnus/NachOS#169, merged), and `OwnUnit.engaged_target` raised for a target the game
+  never listed (maxnus/NachOS#170).
 
 ## Decided, so not to be proposed again
 
 The owner's decisions of 2026-10-25, one question at a time, so that a model or an LLM learns from a game without
-playing it back. The measurements they rest on are in NachOS #168.
+playing it back. The measurements they rest on are in maxnus/NachOS#168.
 
 - **The split** (the owner): NachOS writes the files; the format's spec, the reader and the analysis are this repo,
   which needs pyarrow and never NachOS. The spec lives here, with a version in every file: NachOS's writer writes one
