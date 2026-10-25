@@ -1,0 +1,29 @@
+# Working on salsa with Claude Code
+
+@../AGENTS.md
+
+`AGENTS.md` holds the rules for writing code and docs here, for any agent. This file holds how the repo owner works
+with an agent, and `.claude/plans/next-steps.md` holds the work in progress. Read it before starting anything.
+
+## Pace
+
+- **One step at a time.** Finish the agreed step and show the result with its verification. If the next step is
+  plainly the obvious one, go ahead with it and say so; otherwise offer it and wait.
+- **Plan a design change with the owner before building it.** A decision recorded in `.claude/plans/next-steps.md`
+  stands until the owner reverses it.
+
+## Commits, pushes and pull requests
+
+- **A pushed commit is frozen.** Answer review with a new commit on top, never `--amend`, a fixup rebase that
+  reaches it, or a force-push: those break GitHub's "changes since your last review". Tidying history is the
+  owner's call; offer a squash-merge at the end instead.
+- Branch off `origin/main` after a fetch; a local `main` may be stale.
+- Measurements, and which run proved what, go in the commit message and the PR body.
+- A change to the format here usually needs one to NachOS's writer too: say so in the PR, and plan the two together.
+
+## Reviews
+
+- **Review every pull request you open** before calling it ready: read its whole diff on GitHub, for correctness,
+  tests, docs and the spec, and report the findings to the owner, or say there are none.
+- **Walking through findings**: fix the ones you agree with without asking, and bring the owner only those you
+  disagree with or that leave a real choice, one `AskUserQuestion` each, with everything in the question text.
