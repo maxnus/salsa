@@ -25,9 +25,9 @@ playing it back. The measurements they rest on are in maxnus/NachOS#168 and #3.
   NachOS), and over moving NachOS's launch and protocol layers to a package of their own, which no third user needs
   yet. PyPI takes no dependency on a git repository, so sc2salsa is published after sc2nachos.
 - **The writer reads the protocol** (the owner, 2026-10-25, over NachOS's api): NachOS starts the replay on its own
-  build with its map, and the writer reads each observation itself. Played as player 1 of 5030760 (30 minutes), a
-  view took 4 min 39 s, against 8 min 10 s through the api, which also needs NachOS's private state for the game's
-  ids, names, displays and actions.
+  build with its map, and the writer reads each observation itself. Played as player 1 of 5030760 (30 minutes) with the
+  fog off, a view took 4 min 39 s, against 8 min 10 s through the api, which also needs NachOS's private state for the
+  game's ids, names, displays and actions.
 - **Two playbacks with the fog on** (the owner, 2026-10-25, over the fog off, and over one playback as player 0): one
   as each player, every unit from its owner's view, and the map's units from a view in whose sight they are. Compared
   side by side with the fog off in all six views of three AI Arena games: own units the same at every step, every
@@ -38,10 +38,10 @@ playing it back. The measurements they rest on are in maxnus/NachOS#168 and #3.
   upgrades or sight.
 - **The name**: the repo `salsa`, the package `sc2salsa`, the files `.salsa` (over `sc2replaydata` and `sc2frames`).
 - **A file holds every unit and each side's sight** (over the units alone, and over one player's view): every unit as
-  its owner saw it, both players' actions, economy and upgrades, their units' orders, which units each player saw,
-  and the map once. A player's memory of a unit is the unit at the last step it saw it, so memory needs no table of
-  its own; the sight table says when the player was shown a copy, `remembered` (the owner, 2026-10-25, over three
-  words).
+  its owner saw it, and the map's as either player last saw them, both players' actions, economy and upgrades, their
+  units' orders, which units each player saw, and the map once. A player's memory of a unit is the unit at the last step
+  it saw it, so memory needs no table of its own; the sight table says when the player was shown a copy, `remembered`
+  (the owner, 2026-10-25, over three words).
 - **Every step, exactly** (the owner's idea of checkpoints, over a sample every N steps): a snapshot of every unit
   every 28 steps, 1.25 s of game time, as a table of its own, and between, only the rows that changed. The game cannot
   resume a replay from a state, so the checkpoints are in the file. The owner chose 28 over 224, 128 and 32: denser

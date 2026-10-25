@@ -40,16 +40,21 @@ A reader ignores a member it does not know, so a later version can add one.
   unit, is a `dictionary` string column: one of the words this spec lists, stored as a small index into the column's
   words, which a reader can compare as text.
 - **Two views.** The writer plays the replay back twice, at every step, once as each player, with the fog on, as the
-  game was played. A player's unit is as its owner's view reports it, every field in full. A map unit is as a view in
-  whose sight it is reports it, and as last seen while in neither's; before either player sees it, as the copy each
-  view lists from the start reports it, its type and its spot.
+  game was played, on the raw interface with cloaked units, burrowed units' shadows and placeholders shown and the
+  map uncropped. A player's unit is as its owner's view reports it, every field in full. A map unit is as a view in
+  whose sight it is reports it, and as last seen while in neither's, so one that moves unseen, as a critter does, is
+  where it was last seen; before either player sees it, it is as the copy each view lists from the start reports it,
+  with null for what a copy leaves out, such as its contents. A map unit is listed until either view reports it dead,
+  however long a player's copy of it lingers. An entry the game lists with no tag, the placeholder of a structure
+  ordered and not yet started or a radar blip, is not a unit.
 - **Steps of events.** An action carries the step the game ran it on, as the game stamps it, which is the step before
   the observation that reports it (in game). The game stamps a death with no step: a death carries the step of the
   first observation that reports it.
 - **A unit** is its index in the roster: 0, 1, 2 in the order units are first listed. A column naming a unit is a
   `uint32`, null where it names none. The game names a unit a player remembers in the fog by the tag of the copy it
-  shows the player: such a column names the unit the copy is of, the one of its type on its spot, and is null where
-  none is, or where the tag is one no view lists.
+  shows the player, which replaces the unit in that player's view in the observation in which it leaves sight, of its
+  type and at its very position (in game). Such a column names the unit the copy replaced, or for a map unit's copy
+  from the start, the map unit of its type at its position, and is null where the tag is one no view lists.
 - **Positions** are integers of 1/4096 tile, the grid the game reports them on: `x` 524288 is 128.0 tiles. A position
   column is an `int32`.
 - **Not reported** is null, never 0: a field the game left unset for a unit at a step, such as a mineral field's
@@ -87,10 +92,12 @@ gives them. `snapshot_every` is 28 in version 1.
 ## `names.json`
 
 ```json
-{"unit_types": {"48": "Marine"}, "abilities": {"3674": "Attack"}, "buffs": {"27": "Stimpack"}, "upgrades": {"15": "Stimpack"}}
+{"unit_types": {"48": "Marine"}, "abilities": {"23": "Attack"}, "buffs": {"27": "Stimpack"}, "upgrades": {"15": "Stimpack"}}
 ```
 
-The names the game's data gives each id the file holds, as the game's tables at the game's start name them.
+The names the game's data gives each id the file holds, as the game's tables at the game's start name them. Actions
+and orders hold the ids the game reports, which in the games measured name an ability as one type performs it, 23 for
+an attack and 298 for a probe's gather, rather than the ids that stand for several types'.
 
 ## `map.parquet`
 
@@ -113,7 +120,7 @@ A row per unit, by `unit`.
 | `tag` | `uint64` | the game's tag for it, never a copy's: null for a map unit no player ever sees |
 | `owner` | `uint8` | its owner when first listed |
 | `first_type` | `uint16` | its type when first listed |
-| `first_step`, `last_step` | `uint32` | the first and the last step it was listed at: by its owner's view, or for a map unit, by either view, its copy included |
+| `first_step`, `last_step` | `uint32` | the first and the last step it was listed at: by its owner's view, or for a map unit, from 0 until it is reported dead or the game ends |
 
 ## The unit tables
 
@@ -144,7 +151,8 @@ and a unit whose last change reads `listed` false is not listed then.
 | `attack_level`, `armor_level`, `shield_level` | `uint8` | |
 | `minerals`, `vespene` | `uint16` | what a resource holds |
 | `weapon_cooldown` | `float32` | steps |
-| `assigned_harvesters`, `ideal_harvesters`, `cargo_used`, `cargo_max` | `uint8` | |
+| `assigned_harvesters`, `ideal_harvesters` | `uint8` | |
+| `cargo_used`, `cargo_max` | `uint16` | two nydus share one cargo, whose size is not measured yet |
 | `buff_duration_left`, `buff_duration_max` | `uint32` | steps, of the unit's timed life, as a MULE's, or of a timed buff on it, as an inject's; null where it has neither, which the game reports as a maximum of 0 |
 | `detect_range`, `radar_range`, `radius` | `float32` | tiles |
 | `add_on`, `engaged_target` | `uint32` | units |
@@ -159,7 +167,8 @@ By `unit`, then `step`: a row at a unit's first step, and at each step either pl
 | `sight_1`, `sight_2` | `dictionary` string | as that player's view lists the unit: `out`, not listed; `remembered`, out of its sight, shown as a copy in the fog; `undetected`, in its sight, cloaked or burrowed; or `seen` |
 
 A unit a player remembers is as that player last saw it: its row at the last step it read `seen`, or for a map unit
-not yet seen, its type and its spot.
+not yet seen, as its copy reports it. A memory can outlive its unit: a structure that dies out of a player's sight
+reads `remembered` until its spot comes into sight, after the roster's `last_step`.
 
 ## `orders.parquet`, `buffs.parquet`, `passengers.parquet`, `rallies.parquet`
 
