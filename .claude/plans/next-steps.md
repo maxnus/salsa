@@ -91,6 +91,11 @@ playing it back. The measurements they rest on are in maxnus/NachOS#168 and #3.
   structures behind as copies.
 - **sc2nachos from PyPI** (the owner, 2026-11-04, "Release NachOS first", over pinning NachOS's main by commit): the
   owner released 0.2.0 with `open_replay`.
+- **`names.json` gives an ability's friendly name** (the owner, 2026-11-04, over its button's and its link's): an id
+  already tells abilities apart, but the friendly name reads as what was done, `Train SCV` and `Build Nexus` where the
+  button's is `SCV` and `Nexus`, at the cost of `Attack Attack` and `Move Move`. In the game's table of 2,666
+  abilities, 2,468 friendly names are distinct, 450 button names and 533 link names. Grouping one action across types,
+  as every gather, would take the general ability the game maps each to (298 to 3666), not a name.
 
 ## Next
 
