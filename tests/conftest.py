@@ -10,9 +10,9 @@ from sc2nachos import open_replay_recording
 from salsa_reading import SalsaFile, observations_by_step
 from sc2salsa._writer import write_from_playbacks
 
-FIXTURES = Path(__file__).parent / "fixtures"
-FIXTURE_REPLAY = FIXTURES / "pylon-scout-90s.SC2Replay"
-FIXTURE_VIEWS = (FIXTURES / "pylon-scout-90s-player1.sc2rec", FIXTURES / "pylon-scout-90s-player2.sc2rec")
+FIXTURES_FOLDER = Path(__file__).parent / "fixtures"
+FIXTURE_REPLAY = FIXTURES_FOLDER / "pylon-scout-90s.SC2Replay"
+FIXTURE_VIEWS = (FIXTURES_FOLDER / "pylon-scout-90s-player1.sc2rec", FIXTURES_FOLDER / "pylon-scout-90s-player2.sc2rec")
 
 
 @pytest.fixture(scope="session")

@@ -8,16 +8,16 @@ from s2clientprotocol import raw_pb2, sc2api_pb2
 from sc2salsa._player_tables import PlayerTables
 from sc2salsa._player_view import PlayerView, is_own_unit, spot_of
 from sc2salsa._roster import MAP_OWNER, Roster
-from sc2salsa._schema import EVENT_KINDS, EVENTS
+from sc2salsa._schema import EVENT_KINDS, EVENTS_SCHEMA
 from sc2salsa._sight_table import SightTable
 from sc2salsa._table_builder import TableBuilder
 from sc2salsa._unit_lists import UnitLists
 from sc2salsa._unit_rows import unit_row
 from sc2salsa._unit_tables import UnitTables
 
-_VISIBLE = raw_pb2.DisplayType.Visible
-_COPY = raw_pb2.DisplayType.Snapshot
-_CREATED, _DIED = range(len(EVENT_KINDS))
+_VISIBLE_DISPLAY = raw_pb2.DisplayType.Visible
+_COPY_DISPLAY = raw_pb2.DisplayType.Snapshot
+_CREATED_KIND, _DIED_KIND = range(len(EVENT_KINDS))
 
 
 class GameRecorder:
@@ -32,7 +32,7 @@ class GameRecorder:
         self._lists = UnitLists()
         self._sight = SightTable()
         self._players = PlayerTables()
-        self._events = TableBuilder(EVENTS, words={"kind": EVENT_KINDS})
+        self._events = TableBuilder(EVENTS_SCHEMA, words={"kind": EVENT_KINDS})
         self._dead: set[int] = set()
         self._map_units_alive: set[int] = set()
         self._map_unit_rows: dict[int, tuple[object, ...]] = {}
@@ -48,7 +48,7 @@ class GameRecorder:
         for view in self.views:
             view.name_other_units(step)
         for unit in range(units_before, len(self.roster.entries)):
-            self._events.add((step, unit, _CREATED))
+            self._events.add((step, unit, _CREATED_KIND))
             if self.roster.entries[unit].is_map_unit:
                 self._map_units_alive.add(unit)
         self._record_deaths(step)
@@ -81,7 +81,7 @@ class GameRecorder:
                 if unit is None or unit in self._dead:
                     continue
                 self._dead.add(unit)
-                self._events.add((step, unit, _DIED))
+                self._events.add((step, unit, _DIED_KIND))
                 if unit in self._map_units_alive:
                     self._map_units_alive.discard(unit)
                     self.roster.forget_map_unit(unit)
@@ -114,10 +114,10 @@ class GameRecorder:
                 unit = unit_of_tag.get(tag)
                 if unit not in alive or unit in rows:
                     continue
-                if entry.display_type == _VISIBLE:
+                if entry.display_type == _VISIBLE_DISPLAY:
                     rows[unit] = self._map_unit_rows[unit] = unit_row(entry, view.unit_of)
                     self.roster.place_map_unit(unit, spot_of(entry))
-                elif entry.display_type == _COPY and unit not in self._map_unit_rows:
+                elif entry.display_type == _COPY_DISPLAY and unit not in self._map_unit_rows:
                     self._map_unit_rows[unit] = unit_row(entry, view.unit_of)
         entries = self.roster.entries
         for unit in alive:

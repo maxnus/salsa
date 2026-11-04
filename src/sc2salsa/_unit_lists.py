@@ -4,7 +4,7 @@ change."""
 import pyarrow
 from s2clientprotocol import raw_pb2
 
-from sc2salsa._schema import BUFFS, ORDERS, PASSENGERS, RALLIES
+from sc2salsa._schema import BUFFS_SCHEMA, ORDERS_SCHEMA, PASSENGERS_SCHEMA, RALLIES_SCHEMA
 from sc2salsa._table_builder import TableBuilder
 from sc2salsa._unit_rows import UnitOf, order_list, rally_list
 
@@ -14,10 +14,10 @@ class UnitLists:
     change. A unit's lists are empty before its first row."""
 
     def __init__(self) -> None:
-        self._orders = TableBuilder(ORDERS)
-        self._buffs = TableBuilder(BUFFS)
-        self._passengers = TableBuilder(PASSENGERS)
-        self._rallies = TableBuilder(RALLIES)
+        self._orders = TableBuilder(ORDERS_SCHEMA)
+        self._buffs = TableBuilder(BUFFS_SCHEMA)
+        self._passengers = TableBuilder(PASSENGERS_SCHEMA)
+        self._rallies = TableBuilder(RALLIES_SCHEMA)
         self._orders_of: dict[int, tuple[tuple[object, ...], ...]] = {}
         self._buffs_of: dict[int, frozenset[int]] = {}
         self._passengers_of: dict[int, frozenset[int]] = {}

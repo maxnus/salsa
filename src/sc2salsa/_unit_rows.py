@@ -7,10 +7,10 @@ from s2clientprotocol import common_pb2, raw_pb2
 # A position is an integer of 1/4096 tile, the grid the game reports positions on.
 _POSITION_SCALE = 4096
 
-_FIELD = raw_pb2.Unit.DESCRIPTOR.fields_by_name
+_UNIT_FIELDS = raw_pb2.Unit.DESCRIPTOR.fields_by_name
 # The entry's field each column after the position reads, in the columns' order: `None` where a field is unset.
 _FACING_TO_SHIELD_LEVEL = tuple(
-    _FIELD[name]
+    _UNIT_FIELDS[name]
     for name in (
         "facing",
         "health",
@@ -38,12 +38,12 @@ _FACING_TO_SHIELD_LEVEL = tuple(
         "cargo_space_max",
     )
 )
-_RANGES_AND_RADIUS = tuple(_FIELD[name] for name in ("detect_range", "radar_range", "radius"))
-_OWNER = _FIELD["owner"]
-_BUFF_DURATION_REMAIN = _FIELD["buff_duration_remain"]
-_BUFF_DURATION_MAX = _FIELD["buff_duration_max"]
-_ADD_ON_TAG = _FIELD["add_on_tag"]
-_ENGAGED_TARGET_TAG = _FIELD["engaged_target_tag"]
+_RANGES_AND_RADIUS = tuple(_UNIT_FIELDS[name] for name in ("detect_range", "radar_range", "radius"))
+_OWNER_FIELD = _UNIT_FIELDS["owner"]
+_BUFF_DURATION_REMAIN = _UNIT_FIELDS["buff_duration_remain"]
+_BUFF_DURATION_MAX = _UNIT_FIELDS["buff_duration_max"]
+_ADD_ON_TAG = _UNIT_FIELDS["add_on_tag"]
+_ENGAGED_TARGET_TAG = _UNIT_FIELDS["engaged_target_tag"]
 
 # A target that names no point.
 _NO_POINT = (None, None)
@@ -67,7 +67,7 @@ def unit_row(entry: raw_pb2.Unit, unit_of: UnitOf) -> tuple[object, ...]:
     engaged_target_tag = fields.get(_ENGAGED_TARGET_TAG)
     return (
         entry.unit_type,
-        fields.get(_OWNER),
+        fields.get(_OWNER_FIELD),
         position_of(entry.pos.x),
         position_of(entry.pos.y),
         *[fields.get(field) for field in _FACING_TO_SHIELD_LEVEL],

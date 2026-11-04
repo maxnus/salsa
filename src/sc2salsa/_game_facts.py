@@ -7,15 +7,15 @@ import numpy
 import pyarrow
 from s2clientprotocol import common_pb2, sc2api_pb2
 
-from sc2salsa._schema import FORMAT_VERSION, MAP, SNAPSHOT_EVERY
+from sc2salsa._schema import FORMAT_VERSION, MAP_SCHEMA, SNAPSHOT_EVERY
 
-_RACES = {
+_RACE_WORDS = {
     common_pb2.Terran: "terran",
     common_pb2.Zerg: "zerg",
     common_pb2.Protoss: "protoss",
     common_pb2.Random: "random",
 }
-_RESULTS = {
+_RESULT_WORDS = {
     sc2api_pb2.Victory: "victory",
     sc2api_pb2.Defeat: "defeat",
     sc2api_pb2.Tie: "tie",
@@ -26,8 +26,8 @@ _RESULTS = {
 def game_json(
     info: sc2api_pb2.ResponseReplayInfo, game_infos: Sequence[sc2api_pb2.ResponseGameInfo], *, written_by: str
 ) -> dict[str, object]:
-    """`game.json`: the replay's facts as `info` gives them, and the map's as each player's `game_infos` at the start
-    give them."""
+    """`game.json`: the replay's facts as `info` gives them, its players' but no observer's, and the map's as each
+    player's `game_infos` at the start give them."""
     start = game_infos[0].start_raw
     return {
         "format_version": FORMAT_VERSION,
@@ -38,7 +38,11 @@ def game_json(
         "base_build": info.base_build,
         "data_version": info.data_version,
         "steps": info.game_duration_loops,
-        "players": [_player_facts(entry) for entry in sorted(info.player_info, key=_player_id_of)],
+        "players": [
+            _player_facts(entry)
+            for entry in sorted(info.player_info, key=_player_id_of)
+            if entry.player_info.type != sc2api_pb2.PlayerType.Observer
+        ],
         "map": {
             "width": start.map_size.x,
             "height": start.map_size.y,
@@ -62,9 +66,9 @@ def _player_facts(entry: sc2api_pb2.PlayerInfoExtra) -> dict[str, object]:
     player = entry.player_info
     return {
         "player_id": player.player_id,
-        "race_requested": _RACES.get(player.race_requested),
-        "race_actual": _RACES.get(player.race_actual) if player.HasField("race_actual") else None,
-        "result": _RESULTS.get(entry.player_result.result) if entry.player_result.HasField("result") else None,
+        "race_requested": _RACE_WORDS.get(player.race_requested),
+        "race_actual": _RACE_WORDS.get(player.race_actual) if player.HasField("race_actual") else None,
+        "result": _RESULT_WORDS.get(entry.player_result.result) if entry.player_result.HasField("result") else None,
         "apm": entry.player_apm if entry.HasField("player_apm") else None,
     }
 
@@ -108,7 +112,7 @@ def map_table(game_info: sc2api_pb2.ResponseGameInfo) -> pyarrow.Table:
         # A byte is an eighth of a unit of height, 127 at zero, at the tile's lower left corner.
         "height": (_image_by_tile(start.terrain_height, width, height).ravel().astype(numpy.float32) - 127) / 8,
     }
-    return pyarrow.Table.from_pydict(columns, schema=MAP)
+    return pyarrow.Table.from_pydict(columns, schema=MAP_SCHEMA)
 
 
 def _image_by_tile(image: common_pb2.ImageData, width: int, height: int) -> numpy.ndarray:

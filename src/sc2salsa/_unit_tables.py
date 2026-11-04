@@ -2,7 +2,7 @@
 
 import pyarrow
 
-from sc2salsa._schema import SNAPSHOT_EVERY, UNITS_CHANGES, UNITS_SNAPSHOTS
+from sc2salsa._schema import SNAPSHOT_EVERY, UNITS_CHANGES_SCHEMA, UNITS_SNAPSHOTS_SCHEMA
 from sc2salsa._table_builder import TableBuilder
 
 
@@ -11,8 +11,8 @@ class UnitTables:
     the rows of units first listed, changed in any column, or no longer listed since the step before."""
 
     def __init__(self) -> None:
-        self._snapshots = TableBuilder(UNITS_SNAPSHOTS)
-        self._changes = TableBuilder(UNITS_CHANGES)
+        self._snapshots = TableBuilder(UNITS_SNAPSHOTS_SCHEMA)
+        self._changes = TableBuilder(UNITS_CHANGES_SCHEMA)
         self._rows_before: dict[int, tuple[object, ...]] = {}
 
     def add_step(self, step: int, rows: dict[int, tuple[object, ...]]) -> None:

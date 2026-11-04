@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import pyarrow
 
-from sc2salsa._schema import ROSTER
+from sc2salsa._schema import ROSTER_SCHEMA
 
 # Where a unit of a type stands, exactly as the game reports it: a copy in the fog replaces a unit of its type at its
 # very position (in game), so this names a unit across the observation in which one replaces the other.
@@ -86,4 +86,4 @@ class Roster:
             "first_step": [entry.first_step for entry in self.entries],
             "last_step": [entry.last_step for entry in self.entries],
         }
-        return pyarrow.Table.from_pydict(columns, schema=ROSTER)
+        return pyarrow.Table.from_pydict(columns, schema=ROSTER_SCHEMA)

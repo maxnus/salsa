@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pyarrow
 
-SPEC = Path(__file__).parents[1] / "SPEC.md"
+SPEC_PATH = Path(__file__).parents[1] / "SPEC.md"
 
-_TYPES = {
+_PYARROW_TYPES = {
     "uint8": pyarrow.uint8(),
     "uint16": pyarrow.uint16(),
     "uint32": pyarrow.uint32(),
@@ -18,18 +18,18 @@ _TYPES = {
     "bool": pyarrow.bool_(),
     "list<uint32>": pyarrow.list_(pyarrow.uint32()),
 }
-WORDS = "words"
+WORDS_TYPE = "words"
 """The type `SPEC.md` names a `dictionary` string column: one of the format's own words."""
 SCORE_DETAILS = "every field of the game's score details, flattened"
 """The row of the economy table that stands for many columns."""
 
-_NAME = re.compile(r"`([a-z_0-9]+)`")
+_COLUMN_NAME = re.compile(r"`([a-z_0-9]+)`")
 
 
 def _type_of(text: str) -> pyarrow.DataType | str:
     if "`dictionary` string" in text:
-        return WORDS
-    return _TYPES[text.strip().strip("`")]
+        return WORDS_TYPE
+    return _PYARROW_TYPES[text.strip().strip("`")]
 
 
 def _sections(spec: str) -> dict[str, str]:
@@ -49,7 +49,7 @@ def _columns_of(section: str) -> list[tuple[str, pyarrow.DataType | str, str]]:
     columns = []
     for names, type_text, *said in _table_rows(section):
         said_text = said[0] if said else ""
-        found = _NAME.findall(names)
+        found = _COLUMN_NAME.findall(names)
         for name in found or [names]:
             columns.append((name, _type_of(type_text), said_text))
     return columns
@@ -57,8 +57,8 @@ def _columns_of(section: str) -> list[tuple[str, pyarrow.DataType | str, str]]:
 
 def spec_columns() -> dict[str, list[tuple[str, pyarrow.DataType | str]]]:
     """The columns `SPEC.md` gives each Parquet member of a file, by member name, each with its type: a pyarrow type,
-    `WORDS`, or for the economy table's last row, `SCORE_DETAILS` as its name."""
-    sections = _sections(SPEC.read_text(encoding="utf-8"))
+    `WORDS_TYPE`, or for the economy table's last row, `SCORE_DETAILS` as its name."""
+    sections = _sections(SPEC_PATH.read_text(encoding="utf-8"))
     tables: dict[str, list[tuple[str, pyarrow.DataType | str]]] = {}
     for heading, body in sections.items():
         if member := re.fullmatch(r"`([a-z_]+\.parquet)`", heading):
@@ -86,7 +86,7 @@ def _list_tables(section: str) -> dict[str, list[tuple[str, pyarrow.DataType | s
                 continue
             untyped.append(name)
             if type_text:
-                columns.extend((pending, _TYPES[type_text]) for pending in untyped)
+                columns.extend((pending, _PYARROW_TYPES[type_text]) for pending in untyped)
                 untyped = []
         tables[f"{table_cell.strip('`')}.parquet"] = columns
     return tables
@@ -94,7 +94,7 @@ def _list_tables(section: str) -> dict[str, list[tuple[str, pyarrow.DataType | s
 
 def spec_members() -> list[str]:
     """The members of a file, in the order `SPEC.md`'s table of them gives."""
-    section = _sections(SPEC.read_text(encoding="utf-8"))["The file"]
+    section = _sections(SPEC_PATH.read_text(encoding="utf-8"))["The file"]
     members = []
     for row in _table_rows(section):
         member = re.search(r"`([A-Za-z_0-9.]+)`", row[0])

@@ -16,7 +16,7 @@ from sc2salsa.__about__ import __version__
 from sc2salsa._game_facts import game_json, map_table, names_json
 from sc2salsa._game_recorder import GameRecorder
 from sc2salsa._parquet import parquet_bytes
-from sc2salsa._schema import MEMBERS
+from sc2salsa._schema import MEMBER_NAMES
 
 # How each table's rows are ordered, the first column most significant, as `SPEC.md` gives it.
 _SORTED_BY = {
@@ -59,9 +59,13 @@ def write_salsa_file(replay: Path | str, output: Path | str, *, installation: In
 
 def write_from_playbacks(playbacks: Sequence[ReplayPlayback], replay_data: bytes, output: Path) -> None:
     """Write the game `playbacks`, player 1's and player 2's views of the replay `replay_data`, both at its start, play
-    back to `output`, stepping both to the replay's end."""
+    back to `output`, stepping both to the replay's end. Raises `ValueError` for views of other players, or in another
+    order."""
     info = playbacks[0].info
     _check_two_players(info)
+    played_for = [playback.client.player_id for playback in playbacks]
+    if played_for != [1, 2]:
+        raise ValueError(f"the views are player 1's then player 2's, and these are played for {played_for}")
     game_infos = [playback.client.game_info() for playback in playbacks]
     game_data = playbacks[0].client.game_data()
     tables = {"map.parquet": map_table(game_infos[0]), **_recorded_to_the_end(playbacks).tables()}
@@ -113,19 +117,19 @@ def _check_two_players(info: sc2api_pb2.ResponseReplayInfo) -> None:
 def _ids_held(tables: dict[str, pyarrow.Table]) -> dict[str, set[int]]:
     """The game's ids of each kind `tables` hold, for `names.json` to name."""
 
-    def unique(*columns: tuple[str, str]) -> set[int]:
+    def unique_values(*columns: tuple[str, str]) -> set[int]:
         values: set[int] = set()
         for member, column in columns:
             values.update(value for value in tables[member].column(column).unique().to_pylist() if value is not None)
         return values
 
     return {
-        "unit_types": unique(
+        "unit_types": unique_values(
             ("roster.parquet", "first_type"), ("units_snapshots.parquet", "type"), ("units_changes.parquet", "type")
         ),
-        "abilities": unique(("orders.parquet", "ability"), ("actions.parquet", "ability")),
-        "buffs": unique(("buffs.parquet", "buff")),
-        "upgrades": unique(("upgrades.parquet", "upgrade")),
+        "abilities": unique_values(("orders.parquet", "ability"), ("actions.parquet", "ability")),
+        "buffs": unique_values(("buffs.parquet", "buff")),
+        "upgrades": unique_values(("upgrades.parquet", "upgrade")),
     }
 
 
@@ -134,12 +138,12 @@ def _json_bytes(value: object) -> bytes:
 
 
 def _write_zip(output: Path, members: dict[str, bytes]) -> None:
-    """Write `members` to `output` as an uncompressed zip, in the order `MEMBERS` gives, through a file beside it
+    """Write `members` to `output` as an uncompressed zip, in the order `MEMBER_NAMES` gives, through a file beside it
     renamed into place, so that `output` is whole or not written at all."""
     partial = output.with_name(f"{output.name}.partial")
     try:
         with zipfile.ZipFile(partial, "w", compression=zipfile.ZIP_STORED) as archive:
-            for name in MEMBERS:
+            for name in MEMBER_NAMES:
                 archive.writestr(name, members[name])
         os.replace(partial, output)
     finally:

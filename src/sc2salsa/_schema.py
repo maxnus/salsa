@@ -11,7 +11,7 @@ SNAPSHOT_EVERY = 28
 """The steps between snapshots of every unit, in version 1."""
 
 # A column the format names with its own words, which a reader compares as text.
-_WORDS = pyarrow.dictionary(pyarrow.int8(), pyarrow.string())
+_WORDS_TYPE = pyarrow.dictionary(pyarrow.int8(), pyarrow.string())
 
 # What a unit's row holds, after its step and unit, in both unit tables.
 UNIT_ROW_FIELDS: tuple[tuple[str, pyarrow.DataType], ...] = (
@@ -54,7 +54,7 @@ UNIT_ROW_FIELDS: tuple[tuple[str, pyarrow.DataType], ...] = (
 
 _STEP_AND_UNIT = (("step", pyarrow.uint32()), ("unit", pyarrow.uint32()))
 
-ROSTER = pyarrow.schema(
+ROSTER_SCHEMA = pyarrow.schema(
     [
         ("unit", pyarrow.uint32()),
         ("tag", pyarrow.uint64()),
@@ -64,10 +64,10 @@ ROSTER = pyarrow.schema(
         ("last_step", pyarrow.uint32()),
     ]
 )
-UNITS_SNAPSHOTS = pyarrow.schema([*_STEP_AND_UNIT, *UNIT_ROW_FIELDS])
-UNITS_CHANGES = pyarrow.schema([*_STEP_AND_UNIT, ("listed", pyarrow.bool_()), *UNIT_ROW_FIELDS])
-SIGHT = pyarrow.schema([*_STEP_AND_UNIT, ("sight_1", _WORDS), ("sight_2", _WORDS)])
-ORDERS = pyarrow.schema(
+UNITS_SNAPSHOTS_SCHEMA = pyarrow.schema([*_STEP_AND_UNIT, *UNIT_ROW_FIELDS])
+UNITS_CHANGES_SCHEMA = pyarrow.schema([*_STEP_AND_UNIT, ("listed", pyarrow.bool_()), *UNIT_ROW_FIELDS])
+SIGHT_SCHEMA = pyarrow.schema([*_STEP_AND_UNIT, ("sight_1", _WORDS_TYPE), ("sight_2", _WORDS_TYPE)])
+ORDERS_SCHEMA = pyarrow.schema(
     [
         *_STEP_AND_UNIT,
         ("position", pyarrow.uint8()),
@@ -78,9 +78,9 @@ ORDERS = pyarrow.schema(
         ("progress", pyarrow.float32()),
     ]
 )
-BUFFS = pyarrow.schema([*_STEP_AND_UNIT, ("buff", pyarrow.uint32()), ("gained", pyarrow.bool_())])
-PASSENGERS = pyarrow.schema([*_STEP_AND_UNIT, ("passenger", pyarrow.uint32()), ("loaded", pyarrow.bool_())])
-RALLIES = pyarrow.schema(
+BUFFS_SCHEMA = pyarrow.schema([*_STEP_AND_UNIT, ("buff", pyarrow.uint32()), ("gained", pyarrow.bool_())])
+PASSENGERS_SCHEMA = pyarrow.schema([*_STEP_AND_UNIT, ("passenger", pyarrow.uint32()), ("loaded", pyarrow.bool_())])
+RALLIES_SCHEMA = pyarrow.schema(
     [
         *_STEP_AND_UNIT,
         ("position", pyarrow.uint8()),
@@ -89,8 +89,8 @@ RALLIES = pyarrow.schema(
         ("target_y", pyarrow.int32()),
     ]
 )
-EVENTS = pyarrow.schema([*_STEP_AND_UNIT, ("kind", _WORDS)])
-ACTIONS = pyarrow.schema(
+EVENTS_SCHEMA = pyarrow.schema([*_STEP_AND_UNIT, ("kind", _WORDS_TYPE)])
+ACTIONS_SCHEMA = pyarrow.schema(
     [
         ("step", pyarrow.uint32()),
         ("player", pyarrow.uint8()),
@@ -103,8 +103,10 @@ ACTIONS = pyarrow.schema(
         ("autocast", pyarrow.bool_()),
     ]
 )
-UPGRADES = pyarrow.schema([("step", pyarrow.uint32()), ("player", pyarrow.uint8()), ("upgrade", pyarrow.uint32())])
-MAP = pyarrow.schema(
+UPGRADES_SCHEMA = pyarrow.schema(
+    [("step", pyarrow.uint32()), ("player", pyarrow.uint8()), ("upgrade", pyarrow.uint32())]
+)
+MAP_SCHEMA = pyarrow.schema(
     [
         ("x", pyarrow.uint16()),
         ("y", pyarrow.uint16()),
@@ -144,7 +146,7 @@ def _score_detail_paths() -> tuple[tuple[str, ...], ...]:
 SCORE_DETAIL_PATHS = _score_detail_paths()
 """The fields of the game's score details, each as the path of names to it, in the economy table's order."""
 
-ECONOMY = pyarrow.schema(
+ECONOMY_SCHEMA = pyarrow.schema(
     [
         ("step", pyarrow.uint32()),
         ("player", pyarrow.uint8()),
@@ -160,7 +162,7 @@ SIGHT_WORDS = ("out", "remembered", "undetected", "seen")
 EVENT_KINDS = ("created", "died")
 """What `events.parquet` says of a unit: first listed, or first reported dead."""
 
-MEMBERS = (
+MEMBER_NAMES = (
     "game.json",
     "replay.SC2Replay",
     "names.json",

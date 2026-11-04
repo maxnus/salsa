@@ -20,7 +20,7 @@ from sc2nachos.run import MapFile
 
 from sc2salsa._writer import write_from_playbacks
 
-FIXTURES = Path(__file__).parents[1] / "tests" / "fixtures"
+FIXTURES_FOLDER = Path(__file__).parents[1] / "tests" / "fixtures"
 FIXTURE_NAME = "pylon-scout-90s"
 _GAME_SECONDS = 90
 _SCOUT_BACK_AT_SECONDS = 60
@@ -43,8 +43,8 @@ def _scout_the_enemys_main_and_come_back(api: Api) -> None:
 
 
 def main() -> None:
-    FIXTURES.mkdir(parents=True, exist_ok=True)
-    replay = FIXTURES / f"{FIXTURE_NAME}.SC2Replay"
+    FIXTURES_FOLDER.mkdir(parents=True, exist_ok=True)
+    replay = FIXTURES_FOLDER / f"{FIXTURE_NAME}.SC2Replay"
     api = Api()
     _scout_the_enemys_main_and_come_back(api)
     run_local(
@@ -57,12 +57,12 @@ def main() -> None:
         save_replay_to=replay,
     )
     with (
-        open_replay(replay, player_id=1, record_to=FIXTURES / f"{FIXTURE_NAME}-player1.sc2rec") as first,
-        open_replay(replay, player_id=2, record_to=FIXTURES / f"{FIXTURE_NAME}-player2.sc2rec") as second,
+        open_replay(replay, player_id=1, record_to=FIXTURES_FOLDER / f"{FIXTURE_NAME}-player1.sc2rec") as first,
+        open_replay(replay, player_id=2, record_to=FIXTURES_FOLDER / f"{FIXTURE_NAME}-player2.sc2rec") as second,
         tempfile.TemporaryDirectory() as scratch,
     ):
         write_from_playbacks((first, second), replay.read_bytes(), Path(scratch) / "fixture.salsa")
-    for path in sorted(FIXTURES.glob(f"{FIXTURE_NAME}*")):
+    for path in sorted(FIXTURES_FOLDER.glob(f"{FIXTURE_NAME}*")):
         print(f"{path.name}: {path.stat().st_size} bytes")
 
 

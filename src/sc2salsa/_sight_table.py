@@ -3,7 +3,7 @@
 import pyarrow
 
 from sc2salsa._player_view import SIGHT_OUT
-from sc2salsa._schema import SIGHT, SIGHT_WORDS
+from sc2salsa._schema import SIGHT_SCHEMA, SIGHT_WORDS
 from sc2salsa._table_builder import TableBuilder
 
 _BOTH_OUT = (SIGHT_OUT, SIGHT_OUT)
@@ -14,7 +14,7 @@ class SightTable:
     changes, a unit out of both players' lists reading `out` for both."""
 
     def __init__(self) -> None:
-        self._rows = TableBuilder(SIGHT, words={"sight_1": SIGHT_WORDS, "sight_2": SIGHT_WORDS})
+        self._rows = TableBuilder(SIGHT_SCHEMA, words={"sight_1": SIGHT_WORDS, "sight_2": SIGHT_WORDS})
         self._sight_before: dict[int, tuple[int, int]] = {}
 
     def add_step(self, step: int, first: dict[int, int], second: dict[int, int]) -> None:

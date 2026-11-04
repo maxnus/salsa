@@ -6,7 +6,7 @@ import pyarrow
 from s2clientprotocol import sc2api_pb2
 
 from sc2salsa._player_view import PlayerView
-from sc2salsa._schema import ACTIONS, ECONOMY, PLAYER_COMMON_FIELDS, SCORE_DETAIL_PATHS, UPGRADES
+from sc2salsa._schema import ACTIONS_SCHEMA, ECONOMY_SCHEMA, PLAYER_COMMON_FIELDS, SCORE_DETAIL_PATHS, UPGRADES_SCHEMA
 from sc2salsa._table_builder import TableBuilder
 from sc2salsa._unit_rows import position_of
 
@@ -15,9 +15,9 @@ class PlayerTables:
     """Each player's actions, at the step the game ran each on, and economy and upgrades, at the steps they change."""
 
     def __init__(self) -> None:
-        self._actions = TableBuilder(ACTIONS)
-        self._economy = TableBuilder(ECONOMY)
-        self._upgrades = TableBuilder(UPGRADES)
+        self._actions = TableBuilder(ACTIONS_SCHEMA)
+        self._economy = TableBuilder(ECONOMY_SCHEMA)
+        self._upgrades = TableBuilder(UPGRADES_SCHEMA)
         self._economy_before: dict[int, tuple[object, ...]] = {}
         self._upgrades_before: dict[int, set[int]] = {}
 

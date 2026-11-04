@@ -1,26 +1,30 @@
 """The file the writer writes from the recorded fixture, with no game client, checked against `SPEC.md` and against
 what each player's view reported at every step."""
 
+import zipfile
 from collections import Counter
 from pathlib import Path
 from typing import Any
 
 import numpy
 import pyarrow
+import pyarrow.parquet
 import pytest
 from s2clientprotocol import raw_pb2, sc2api_pb2, score_pb2
+from sc2nachos import open_replay_recording
 from sc2nachos.protocol import Recording
 
 from conftest import FIXTURE_REPLAY, FIXTURE_VIEWS
 from salsa_reading import SalsaFile, units_at_each_step
-from sc2salsa._writer import _check_two_players, write_salsa_file
-from spec_tables import SCORE_DETAILS, WORDS, spec_columns, spec_members
+from sc2salsa._game_facts import game_json
+from sc2salsa._writer import _check_two_players, write_from_playbacks, write_salsa_file
+from spec_tables import SCORE_DETAILS, WORDS_TYPE, spec_columns, spec_members
 
 type Views = tuple[dict[int, sc2api_pb2.ResponseObservation], dict[int, sc2api_pb2.ResponseObservation]]
 
-_VISIBLE = raw_pb2.DisplayType.Visible
-_UNDETECTED = raw_pb2.DisplayType.Hidden
-_OWN = raw_pb2.Alliance.Self
+_VISIBLE_DISPLAY = raw_pb2.DisplayType.Visible
+_UNDETECTED_DISPLAY = raw_pb2.DisplayType.Hidden
+_OWN_ALLIANCE = raw_pb2.Alliance.Self
 _MAP_OWNER = 16
 
 # Each unit table column the entry's field of the same meaning gives, where the two names differ.
@@ -41,6 +45,8 @@ _FIELD_OF_COLUMN = {
 }
 # Columns worked out from more than one field, or naming units: compared on their own.
 _WORKED_OUT = {"x", "y", "buff_duration_left", "buff_duration_max", "add_on", "engaged_target"}
+# The columns of a unit's row after its step and unit, as `SPEC.md` gives them, read once.
+_UNIT_ROW_COLUMNS = [column for column, _ in spec_columns()["units_snapshots.parquet"][2:]]
 
 
 @pytest.fixture(scope="module")
@@ -59,7 +65,7 @@ def unit_of_tag(salsa: SalsaFile) -> dict[int, int]:
 def _expected_row(entry: raw_pb2.Unit, unit_of_tag: dict[int, int]) -> dict[str, Any]:
     """The row `SPEC.md` says `entry` makes, read field by field, apart from the writer's own reading."""
     row: dict[str, Any] = {}
-    for column, _ in spec_columns()["units_snapshots.parquet"][2:]:
+    for column in _UNIT_ROW_COLUMNS:
         if column not in _WORKED_OUT:
             field = _FIELD_OF_COLUMN.get(column, column)
             # Named by a string here, which protobuf's stubs type as each field's literal name.
@@ -74,7 +80,7 @@ def _expected_row(entry: raw_pb2.Unit, unit_of_tag: dict[int, int]) -> dict[str,
     return row
 
 
-def _matches(listed: dict[str, Any], entry: raw_pb2.Unit, unit_of_tag: dict[int, int]) -> bool:
+def _row_matches_entry(listed: dict[str, Any], entry: raw_pb2.Unit, unit_of_tag: dict[int, int]) -> bool:
     """Whether a unit's row rebuilt from the file is what `entry` reports. A target named by a copy's tag, which the
     roster does not give, is left out."""
     expected = _expected_row(entry, unit_of_tag)
@@ -105,7 +111,7 @@ class TestTheFile:
         schema = salsa.tables[member].schema
         assert schema.names == [name for name, _ in expected]
         for (name, kind), field in zip(expected, schema, strict=True):
-            if kind == WORDS:
+            if kind == WORDS_TYPE:
                 assert pyarrow.types.is_dictionary(field.type) and field.type.value_type == pyarrow.string(), name
             else:
                 assert field.type == kind, name
@@ -187,14 +193,14 @@ class TestTheUnits:
         compared = 0
         for player, view in enumerate(views, start=1):
             for step, observation in view.items():
-                own = [entry for entry in observation.observation.raw_data.units if entry.alliance == _OWN]
-                own = [entry for entry in own if entry.display_type == _VISIBLE]
+                own = [entry for entry in observation.observation.raw_data.units if entry.alliance == _OWN_ALLIANCE]
+                own = [entry for entry in own if entry.display_type == _VISIBLE_DISPLAY]
                 listed = listed_at_each_step[step]
                 assert {unit for unit, row in listed.items() if row["owner"] == player} == {
                     unit_of_tag[entry.tag] for entry in own
                 }, step
                 for entry in own:
-                    assert _matches(listed[unit_of_tag[entry.tag]], entry, unit_of_tag), (step, entry.tag)
+                    assert _row_matches_entry(listed[unit_of_tag[entry.tag]], entry, unit_of_tag), (step, entry.tag)
                     compared += 1
         assert compared > 50_000
 
@@ -206,10 +212,14 @@ class TestTheUnits:
             compared_at_step = set()
             for view in views:
                 for entry in view[step].observation.raw_data.units:
-                    if entry.owner != _MAP_OWNER or entry.display_type != _VISIBLE or entry.tag in compared_at_step:
+                    if (
+                        entry.owner != _MAP_OWNER
+                        or entry.display_type != _VISIBLE_DISPLAY
+                        or entry.tag in compared_at_step
+                    ):
                         continue
                     compared_at_step.add(entry.tag)
-                    assert _matches(listed[unit_of_tag[entry.tag]], entry, unit_of_tag), (step, entry.tag)
+                    assert _row_matches_entry(listed[unit_of_tag[entry.tag]], entry, unit_of_tag), (step, entry.tag)
                     compared += 1
         assert compared > 10_000
 
@@ -262,7 +272,7 @@ class TestSight:
                 sight[row["unit"]] = (row["sight_1"], row["sight_2"])
             for player, view in enumerate(views):
                 for entry in view[step].observation.raw_data.units:
-                    expected = {_VISIBLE: "seen", _UNDETECTED: "undetected"}.get(entry.display_type)
+                    expected = {_VISIBLE_DISPLAY: "seen", _UNDETECTED_DISPLAY: "undetected"}.get(entry.display_type)
                     if expected is not None and entry.tag in unit_of_tag:
                         assert sight[unit_of_tag[entry.tag]][player] == expected, (step, entry.tag)
 
@@ -346,12 +356,124 @@ class TestOrders:
             orders.update(changed)
             for view in views:
                 for entry in view[step].observation.raw_data.units:
-                    if entry.alliance == _OWN and entry.display_type == _VISIBLE:
+                    if entry.alliance == _OWN_ALLIANCE and entry.display_type == _VISIBLE_DISPLAY:
                         expected = [
                             (order.ability_id, order.progress if order.HasField("progress") else None)
                             for order in entry.orders
                         ]
                         assert orders.get(unit_of_tag[entry.tag], []) == expected, (step, entry.tag)
+
+
+class TestTheOtherLists:
+    """Each player's units' buffs, passengers and rally targets, rebuilt from their tables at every step, against its
+    own view."""
+
+    def test_each_players_units_buffs_are_as_its_own_view_reports_them(
+        self, salsa: SalsaFile, views: Views, unit_of_tag: dict[int, int]
+    ) -> None:
+        rows_by_step = _rows_by_step(salsa, "buffs.parquet")
+        buffs: dict[int, set[int]] = {}
+        compared = 0
+        for step in range(len(views[0])):
+            for row in rows_by_step.get(step, ()):
+                held = buffs.setdefault(row["unit"], set())
+                if row["gained"]:
+                    held.add(row["buff"])
+                else:
+                    held.discard(row["buff"])
+            for entry in _own_entries(views, step):
+                assert buffs.get(unit_of_tag[entry.tag], set()) == set(entry.buff_ids), (step, entry.tag)
+                compared += bool(entry.buff_ids)
+        assert compared > 0
+
+    def test_each_players_units_passengers_are_as_its_own_view_reports_them(
+        self, salsa: SalsaFile, views: Views, unit_of_tag: dict[int, int]
+    ) -> None:
+        rows_by_step = _rows_by_step(salsa, "passengers.parquet")
+        passengers: dict[int, set[int]] = {}
+        for step in range(len(views[0])):
+            for row in rows_by_step.get(step, ()):
+                held = passengers.setdefault(row["unit"], set())
+                if row["loaded"]:
+                    held.add(row["passenger"])
+                else:
+                    held.discard(row["passenger"])
+            for entry in _own_entries(views, step):
+                expected = {unit_of_tag[passenger.tag] for passenger in entry.passengers}
+                assert passengers.get(unit_of_tag[entry.tag], set()) == expected, (step, entry.tag)
+
+    def test_each_players_units_rally_targets_are_as_its_own_view_reports_them(
+        self, salsa: SalsaFile, views: Views, unit_of_tag: dict[int, int]
+    ) -> None:
+        rows_by_step = _rows_by_step(salsa, "rallies.parquet")
+        rallies: dict[int, list[tuple[Any, ...]]] = {}
+        compared = 0
+        for step in range(len(views[0])):
+            changed: dict[int, list[tuple[Any, ...]]] = {}
+            for row in rows_by_step.get(step, ()):
+                targets = changed.setdefault(row["unit"], [])
+                if row["position"] is not None:
+                    targets.append((row["target_unit"], row["target_x"], row["target_y"]))
+            rallies.update(changed)
+            for entry in _own_entries(views, step):
+                expected = [
+                    (
+                        unit_of_tag.get(rally.tag) if rally.HasField("tag") else None,
+                        round(rally.point.x * 4096) if rally.HasField("point") else None,
+                        round(rally.point.y * 4096) if rally.HasField("point") else None,
+                    )
+                    for rally in entry.rally_targets
+                ]
+                assert rallies.get(unit_of_tag[entry.tag], []) == expected, (step, entry.tag)
+                compared += bool(expected)
+        assert compared > 0
+
+
+def _rows_by_step(salsa: SalsaFile, member: str) -> dict[int, list[dict[str, Any]]]:
+    """The rows of the table `member`, by their step, each step's in the table's order."""
+    rows_by_step: dict[int, list[dict[str, Any]]] = {}
+    for row in salsa.rows(member):
+        rows_by_step.setdefault(row["step"], []).append(row)
+    return rows_by_step
+
+
+def _own_entries(views: Views, step: int) -> list[raw_pb2.Unit]:
+    """Each player's own units, as its own view lists them at `step`."""
+    return [
+        entry
+        for view in views
+        for entry in view[step].observation.raw_data.units
+        if entry.alliance == _OWN_ALLIANCE and entry.display_type == _VISIBLE_DISPLAY
+    ]
+
+
+class TestTheEncodings:
+    def test_integer_columns_are_delta_encoded_floats_byte_stream_split_and_words_a_dictionary(
+        self, fixture_file: Path
+    ) -> None:
+        """As `SPEC.md`'s conventions say, in every member with rows."""
+        checked = Counter()
+        with zipfile.ZipFile(fixture_file) as archive:
+            for name in archive.namelist():
+                if not name.endswith(".parquet"):
+                    continue
+                parquet = pyarrow.parquet.ParquetFile(pyarrow.BufferReader(archive.read(name)))
+                schema = parquet.schema_arrow
+                for group_index in range(parquet.metadata.num_row_groups):
+                    group = parquet.metadata.row_group(group_index)
+                    for column_index in range(group.num_columns if group.num_rows else 0):
+                        column = group.column(column_index)
+                        kind = schema.field(column.path_in_schema.split(".")[0]).type
+                        if pyarrow.types.is_integer(kind):
+                            assert "DELTA_BINARY_PACKED" in column.encodings, (name, column.path_in_schema)
+                            checked["integer"] += 1
+                        elif pyarrow.types.is_floating(kind):
+                            assert "BYTE_STREAM_SPLIT" in column.encodings, (name, column.path_in_schema)
+                            checked["float"] += 1
+                        elif pyarrow.types.is_dictionary(kind):
+                            assert "RLE_DICTIONARY" in column.encodings, (name, column.path_in_schema)
+                            checked["words"] += 1
+        assert min(checked.values()) > 0 and len(checked) == 3
 
 
 class TestRefusals:
@@ -361,6 +483,26 @@ class TestRefusals:
         )
         with pytest.raises(ValueError, match=r"players 1 and 2, and this replay's players are \[1\]"):
             _check_two_players(info)
+
+    def test_views_in_another_order_are_refused(self, tmp_path: Path) -> None:
+        with (
+            open_replay_recording(FIXTURE_VIEWS[1]) as second,
+            open_replay_recording(FIXTURE_VIEWS[0]) as first,
+            pytest.raises(ValueError, match=r"player 1's then player 2's, and these are played for \[2, 1\]"),
+        ):
+            write_from_playbacks((second, first), FIXTURE_REPLAY.read_bytes(), tmp_path / "game.salsa")
+
+    def test_an_observer_is_not_one_of_the_games_players(self) -> None:
+        info = sc2api_pb2.ResponseReplayInfo(
+            player_info=[
+                sc2api_pb2.PlayerInfoExtra(player_info=sc2api_pb2.PlayerInfo(player_id=player_id, type=kind))
+                for player_id, kind in ((1, sc2api_pb2.Participant), (2, sc2api_pb2.Computer), (3, sc2api_pb2.Observer))
+            ]
+        )
+        game = game_json(info, [sc2api_pb2.ResponseGameInfo()] * 2, written_by="sc2salsa")
+        players = game["players"]
+        assert isinstance(players, list)
+        assert [player["player_id"] for player in players] == [1, 2]
 
     @pytest.mark.parametrize(
         ("output", "error"),
