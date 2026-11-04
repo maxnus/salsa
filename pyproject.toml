@@ -1,0 +1,88 @@
+[project]
+name = "sc2salsa"
+dynamic = ["version"]
+description = "StarCraft II games as data: the .salsa file format, its writer and its reader"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "Max Nusspickel", email = "max.nusspickel@gmail.com" }]
+keywords = ["StarCraft", "StarCraft 2", "StarCraft II", "replay", "dataset"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Games/Entertainment :: Real Time Strategy",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "sc2nachos>=0.2.0",
+    "pyarrow>=18",
+    "numpy>=2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/maxnus/salsa"
+Repository = "https://github.com/maxnus/salsa"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.8",
+    "pyright>=1.1.390",
+]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+# The version is the git tag, as NachOS's is: `v0.1.0` builds 0.1.0, and a commit after it a dev version of the next.
+# The fallback is for a copy of the source without git.
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.0.0"
+
+# Written at every build and editable install, and not tracked, so that `sc2salsa.__version__` reads without git.
+[tool.hatch.build.hooks.vcs]
+version-file = "src/sc2salsa/__about__.py"
+template = '''
+# Written by hatch-vcs from the git tag at build time; not tracked.
+__version__ = "{version}"
+'''
+
+[tool.uv]
+# Reinstall sc2salsa in its own environment when the commit or a tag changes, so that `__about__.py` follows them.
+cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sc2salsa"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not integration'"
+markers = ["integration: needs StarCraft II installed, and starts it"]
+filterwarnings = [
+    "ignore::DeprecationWarning:google.protobuf.*",
+    "ignore::DeprecationWarning:s2clientprotocol.*",
+]
+
+[tool.pyright]
+include = ["src", "tests", "tools"]
+pythonVersion = "3.12"
+# protobuf ships type stubs without inline source; nothing to fix on our side.
+reportMissingModuleSource = false
+
+[tool.ruff]
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "PLR0915"]
+
+[tool.ruff.lint.pylint]
+# A function in `src` stays short, as in NachOS; tests and tools are exempt, below.
+max-statements = 30
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR0915"]
+"tools/**" = ["PLR0915"]

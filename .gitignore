@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.egg-info/
+build/
+dist/
+# Written by hatch-vcs at every build and editable install.
+src/sc2salsa/__about__.py
