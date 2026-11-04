@@ -1,14 +1,19 @@
 # Next steps for salsa
 
-Written 2026-10-25 as a handover to the next agent, who will not have the previous agent's memory. It holds where
-the work stands, what the repo owner has already decided, and the next steps in order. The working agreements are in
-`.claude/CLAUDE.md`, which Claude Code loads by itself.
+Written 2026-10-25, brought up to date 2026-11-04, as a handover to the next agent, who will not have the previous
+agent's memory. It holds where the work stands, what the repo owner has already decided, and the next steps in order.
+The working agreements are in `.claude/CLAUDE.md`, which Claude Code loads by itself.
 
 Keep this file current: when a step is done, say so here in the same pull request, and cut what no longer helps.
 
 ## Where things stand
 
-- The format's spec, version 1, is `SPEC.md` (#2, and the writer's decisions in #3). No code yet.
+- The format's spec, version 1, is `SPEC.md` (#2, and the writer's decisions in #3), and the writer writes it (#4):
+  `sc2salsa.write_salsa_file(replay, output)`. A 31-minute AI Arena game, 4933221, took 4 min 33 s to write, Python's
+  own peak memory 1.3 GB, its file 13.8 MB, 9.3 MB of it the unit changes' 2.8 million rows. No file has been written
+  for anyone yet, so version 1 may still change.
+- NachOS's public replay start, `open_replay` and `open_replay_recording`, is in sc2nachos 0.2.0 (maxnus/NachOS#176),
+  which the writer depends on.
 - Two NachOS bugs that AI Arena's replays hit are fixed: `run_replay` could not play back a replay whose map is not
   where the replay names it (maxnus/NachOS#169), and `OwnUnit.engaged_target` raised for a target the game never
   listed (maxnus/NachOS#170).
@@ -78,15 +83,27 @@ playing it back. The measurements they rest on are in maxnus/NachOS#168 and #3.
   as a pyarrow Table, every unit `at(step)` from the nearest snapshot and the changes since, `frames(every=N)` forward
   through the game, and `extract(folder)`.
 
+- **The writer as proposed** (the owner, 2026-11-04, "Build it this way", over playing the views one after the
+  other): `write_salsa_file(replay, output, *, installation=None)` opens the replay as each player at once and steps
+  both views together; the tables gather rows as the game goes, sorted and written at its end; no command line until
+  step 4; tests from both views of a short game on Pylon, recorded by `open_replay(record_to=...)`; NachOS's tooling.
+  The fixture's game runs 90 seconds rather than the 60 proposed, for its scout to see the enemy's main and leave its
+  structures behind as copies.
+- **sc2nachos from PyPI** (the owner, 2026-11-04, "Release NachOS first", over pinning NachOS's main by commit): the
+  owner released 0.2.0 with `open_replay`.
+- **`names.json` gives an ability's friendly name** (the owner, 2026-11-04, over its button's and its link's): an id
+  already tells abilities apart, but the friendly name reads as what was done, `Train SCV` and `Build Nexus` where the
+  button's is `SCV` and `Nexus`, at the cost of `Attack Attack` and `Move Move`. In the game's table of 2,666
+  abilities, 2,468 friendly names are distinct, 450 button names and 533 link names. Grouping one action across types,
+  as every gather, would take the general ability the game maps each to (298 to 3666), not a name.
+
 ## Next
 
 A pull request at a time, in this order (the owner, over the spec and reader first, and over the writer first):
 
-1. In NachOS (its plan): a public way to start a replay on its own build with its map and read its observations, the
-   first half of `run_replay`.
-2. **The writer**, which writes a replay's file, with `pyproject.toml`, tests and CI: its tests play back
-   recorded observations through NachOS's playback transport, with no game client, and read the file back with
-   pyarrow against `SPEC.md`; an in-game test writes a real replay.
+1. Done: in NachOS, a public way to start a replay on its own build with its map and read its observations
+   (maxnus/NachOS#176).
+2. Done: **the writer**, with `pyproject.toml`, tests and CI (#4).
 3. **The reader**, its fixtures written by the writer.
 4. A folder of replays written across several game clients.
 5. **A digest of a game for an LLM.**

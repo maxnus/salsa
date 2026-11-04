@@ -47,9 +47,10 @@ A reader ignores a member it does not know, so a later version can add one.
   with null for what a copy leaves out, such as its contents. A map unit is listed until either view reports it dead,
   however long a player's copy of it lingers. An entry the game lists with no tag, the placeholder of a structure
   ordered and not yet started or a radar blip, is not a unit.
-- **Steps of events.** An action carries the step the game ran it on, as the game stamps it, which is the step before
-  the observation that reports it (in game). The game stamps a death with no step: a death carries the step of the
-  first observation that reports it.
+- **Steps of events.** An action carries the step the game ran it on, as the game stamps it: the step before the
+  observation that reports it for a player that joined as a client, and the observation's own step for the built-in
+  computer (in game). The game stamps a death with no step: a death carries the step of the first observation that
+  reports it.
 - **A unit** is its index in the roster: 0, 1, 2 in the order units are first listed. A column naming a unit is a
   `uint32`, null where it names none. The game names a unit a player remembers in the fog by the tag of the copy it
   shows the player, which replaces the unit in that player's view in the observation in which it leaves sight, of its
@@ -86,18 +87,20 @@ The game's facts, in this shape (the values are an example):
 ```
 
 `steps` is the replay's length. Races are `terran`, `zerg`, `protoss` or `random`; results are `victory`, `defeat`,
-`tie` or `undecided`. `map` is the map's size, its playable area and its start locations, in tiles, as the game's info
-gives them. `snapshot_every` is 28 in version 1.
+`tie` or `undecided`, null where the replay gives none. `map` is the map's size, its playable area and its start
+locations, in tiles, as the game's info gives them: each player's info gives the others' starts, so on a map of two,
+player 1's start comes first. `snapshot_every` is 28 in version 1.
 
 ## `names.json`
 
 ```json
-{"unit_types": {"48": "Marine"}, "abilities": {"23": "Attack"}, "buffs": {"27": "Stimpack"}, "upgrades": {"15": "Stimpack"}}
+{"unit_types": {"48": "Marine"}, "abilities": {"298": "Harvest Gather Probe"}, "buffs": {"27": "Stimpack"}, "upgrades": {"15": "Stimpack"}}
 ```
 
-The names the game's data gives each id the file holds, as the game's tables at the game's start name them. Actions
-and orders hold the ids the game reports, which in the games measured name an ability as one type performs it, 23 for
-an attack and 298 for a probe's gather, rather than the ids that stand for several types'.
+The names the game's data gives each id the file holds, as the game's tables at the game's start name them: an
+ability's friendly name, which tells one type's ability from another's, where its button's, `Gather`, does not.
+Actions and orders hold the ids the game reports, which in the games measured name an ability as one type performs it,
+23 for an attack and 298 for a probe's gather, rather than the ids that stand for several types'.
 
 ## `map.parquet`
 
@@ -108,7 +111,7 @@ A row per tile of the map, by `x`, then `y`.
 | `x`, `y` | `uint16` | the tile |
 | `pathable` | `bool` | as the game's pathing grid gives it at the start |
 | `placeable` | `bool` | as the game's placement grid gives it |
-| `height` | `float32` | the terrain's height |
+| `height` | `float32` | the terrain's height at the tile's lower left corner, as the game gives it, in the units of a unit's `z` |
 
 ## `roster.parquet`
 
@@ -170,6 +173,10 @@ A unit a player remembers is as that player last saw it: its row at the last ste
 not yet seen, as its copy reports it. A memory can outlive its unit: a structure that dies out of a player's sight
 reads `remembered` until its spot comes into sight, after the roster's `last_step`.
 
+Which copies a view lists at the edge of its sight can differ by a step from one playback of a replay to the next (in
+game), so two files written from one replay can differ in a few rows of this table, and in no other: 4 to 6 of the
+21,922 rows of AI Arena game 4933221, in three writes.
+
 ## `orders.parquet`, `buffs.parquet`, `passengers.parquet`, `rallies.parquet`
 
 Each by `unit`, then `step`, with rows only where the unit's list changes, in any column: an order's `progress` alone
@@ -183,7 +190,7 @@ changing is a change. Each is as the unit's row is, from its owner's view.
 | `rallies` | `step`, `unit`, `position` (`uint8`), `target_unit` (`uint32`), `target_x`, `target_y` (`int32`) |
 
 At a step where a unit's orders or rallies change, the table holds its whole list then: every position, or a single
-row with `position` null for an empty one.
+row with `position` null for an empty one. A unit's lists are empty before its first row in each table.
 
 ## `events.parquet`
 

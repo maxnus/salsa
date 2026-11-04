@@ -38,5 +38,17 @@ says how code and docstrings are named and written, here too. Never a one-word n
 ## Testing
 
 `pytest`, with no game client: the writer's tests play back recorded observations, and the reader's read small
-`.salsa` files the writer wrote, in `tests/fixtures/`, each with a line saying how it was made. The commands come with
-the writer's pull request.
+`.salsa` files the writer wrote, in `tests/fixtures/`, each with a line in its README saying how it was made. A
+playback answers only what was asked when it was recorded, so a writer that asks the game anything new fails the tests
+until `tools/record_fixture.py` records the fixture again. Tests marked `@pytest.mark.integration` start the game.
+
+| Task | Command |
+|---|---|
+| Set up | `uv sync --extra dev` |
+| Run tests | `uv run pytest` |
+| Run the tests that start a game | `uv run pytest -m integration` |
+| Lint | `uv run ruff check .` and `uv run ruff format --check .` |
+| Type check | `uv run pyright` |
+
+Read a Parquet table through `pyarrow.BufferReader`, never an `io.BytesIO`: pyarrow 26.0.1 hangs Python 3.13 at its
+exit once it has read a table from a Python file with threads.
